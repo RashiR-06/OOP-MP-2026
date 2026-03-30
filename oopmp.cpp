@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 using namespace std;
 
 class Course 
@@ -15,6 +16,64 @@ public:
     }
 };
 
+// 🔹 LOAD COURSES FROM FILE
+void loadCourses(Course courses[], int &n)
+{
+    ifstream file("courses.txt");
+    n = 0;
+
+    while (file >> courses[n].id >> courses[n].name 
+                >> courses[n].capacity >> courses[n].enrolled)
+    {
+        n++;
+    }
+
+    file.close();
+}
+
+// 🔹 SAVE COURSES TO FILE
+void saveCourses(Course courses[], int n)
+{
+    ofstream file("courses.txt");
+
+    for (int i = 0; i < n; i++)
+    {
+        file << courses[i].id << " "
+             << courses[i].name << " "
+             << courses[i].capacity << " "
+             << courses[i].enrolled << endl;
+    }
+
+    file.close();
+}
+
+// 🔹 LOGIN FUNCTION
+bool loginStudent(string username, string password)
+{
+    ifstream file("students.txt");
+    string u, p;
+
+    while (file >> u >> p)
+    {
+        if (u == username && p == password)
+        {
+            file.close();
+            return true;
+        }
+    }
+
+    file.close();
+    return false;
+}
+
+// 🔹 REGISTER NEW STUDENT
+void registerStudent(string username, string password)
+{
+    ofstream file("students.txt", ios::app);
+    file << "\n"<< username << " " << password << endl;
+    file.close();
+}
+
 class Student 
 {
 private:
@@ -29,7 +88,6 @@ public:
         courseCount = 0;
     }
 
-    // 🔹 VIEW AVAILABLE COURSES
     void viewCourses(Course courses[], int n) 
     {
         cout << "\nAvailable Courses:\n";
@@ -39,7 +97,6 @@ public:
         }
     }
 
-    // 🔹 REGISTER COURSE
     void registerCourse(Course courses[], int n) 
     {
         string cid;
@@ -56,14 +113,12 @@ public:
             }
         }
 
-        // max 2 courses
         if (courseCount == 2) 
         {
             cout << "Max 2 courses allowed!\n";
             return;
         }
 
-        // find course
         for (int i = 0; i < n; i++) 
         {
             if (courses[i].id == cid) 
@@ -74,9 +129,10 @@ public:
                     return;
                 }
 
-                registeredCourses[courseCount] = cid;
-                courseCount++;
+                registeredCourses[courseCount++] = cid;
                 courses[i].enrolled++;
+
+                saveCourses(courses, n); //  save update
 
                 cout << "Registered successfully!\n";
                 return;
@@ -86,7 +142,6 @@ public:
         cout << "Course not found!\n";
     }
 
-    // 🔹 DROP COURSE
     void dropCourse(Course courses[], int n) 
     {
         string cid;
@@ -97,7 +152,6 @@ public:
         {
             if (registeredCourses[i] == cid) 
             {
-                // decrease enrollment
                 for (int j = 0; j < n; j++) 
                 {
                     if (courses[j].id == cid) 
@@ -106,13 +160,14 @@ public:
                     }
                 }
 
-                // shift array
                 for (int j = i; j < courseCount - 1; j++) 
                 {
                     registeredCourses[j] = registeredCourses[j + 1];
                 }
 
                 courseCount--;
+
+                saveCourses(courses, n); // 🔥 save update
 
                 cout << "Course dropped!\n";
                 return;
@@ -122,7 +177,6 @@ public:
         cout << "You are not registered in this course!\n";
     }
 
-    // 🔹 VIEW MY COURSES
     void viewMyCourses() 
     {
         if (courseCount == 0) 
@@ -138,7 +192,6 @@ public:
         }
     }
 
-    // 🔹 STUDENT MENU
     void studentMenu(Course courses[], int n) 
     {
         int choice;
@@ -169,14 +222,10 @@ public:
 
 int main() 
 {
-    Course courses[5] = 
-    {
-        {"C1", "AI/ML", 20, 0},
-        {"C2", "CYBERSECURITY", 10, 0},
-        {"C3", "WEB DEVELOPMENT", 5, 0},
-        {"C4", "BLOCKCHAIN", 1, 0},
-        {"C5", "CLOUD COMPUTING", 15, 0}
-    };
+    Course courses[10];
+    int n;
+
+    loadCourses(courses, n);
 
     int role;
     cout << "1. Student\n2. Admin\nEnter role: ";
@@ -184,6 +233,10 @@ int main()
 
     if (role == 1) 
     {
+        int opt;
+        cout << "1. Login\n2. Register\nEnter: ";
+        cin >> opt;
+
         string username, password;
 
         cout << "Enter username: ";
@@ -192,18 +245,23 @@ int main()
         cout << "Enter password: ";
         cin >> password;
 
-        string correctPass = username + "123";
-
-        if (password == correctPass) 
+        if (opt == 2)
         {
-            cout << "Login successful!\n";
+            registerStudent(username, password);
+            cout << "Registered successfully!\n";
+        }
+        else{
+            if (loginStudent(username, password)) 
+            {
+                cout << "Login successful!\n";
 
-            Student s(username);
-            s.studentMenu(courses, 5);
-        } 
-        else 
-        {
-            cout << "Invalid credentials!\n";
+                Student s(username);
+                s.studentMenu(courses, n);
+            } 
+            else 
+            {
+                cout << "Invalid credentials!\n";
+            }
         }
     }
     else if (role == 2) 
