@@ -1,277 +1,269 @@
 #include <iostream>
 #include <fstream>
+#include <stdexcept>
+#include <vector>
+#include <string>
+
 using namespace std;
 
-class Course 
-{
+// --- ADVANCED OOP: INHERITANCE ---
+class Person {
+public:
+    string username;
+    static int totalUsers; 
+
+    Person(string uname) : username(uname) {
+        totalUsers++; 
+    }
+};
+
+int Person::totalUsers = 0;
+
+class Course {
 public:
     string id, name;
     int capacity;
     int enrolled;
 
-    void display() 
-    {
+    void display() const {
         cout << id << " | " << name 
-             << " | Seats Left: " << (capacity - enrolled) << endl;
+             << " | Seats Left: " << (capacity - enrolled) << " (" 
+             << enrolled << "/" << capacity << ")" << endl;
     }
 };
 
-// 🔹 LOAD COURSES FROM FILE
-void loadCourses(Course courses[], int &n)
-{
+// --- FILE HANDLING FUNCTIONS ---
+// Now uses vector: no need for 'int &n' as courses.size() handles it
+void loadCourses(vector<Course> &courses) {
     ifstream file("courses.txt");
-    n = 0;
-
-    while (file >> courses[n].id >> courses[n].name 
-                >> courses[n].capacity >> courses[n].enrolled)
-    {
-        n++;
+    courses.clear();
+    Course temp;
+    while (file >> temp.id >> temp.name >> temp.capacity >> temp.enrolled) {
+        courses.push_back(temp);
     }
-
     file.close();
 }
 
-// 🔹 SAVE COURSES TO FILE
-void saveCourses(Course courses[], int n)
-{
+void saveCourses(const vector<Course> &courses) {
     ofstream file("courses.txt");
-
-    for (int i = 0; i < n; i++)
-    {
-        file << courses[i].id << " "
-             << courses[i].name << " "
-             << courses[i].capacity << " "
-             << courses[i].enrolled << endl;
+    for (const auto &c : courses) {
+        file << c.id << " " << c.name << " "
+             << c.capacity << " " << c.enrolled << endl;
     }
-
     file.close();
 }
 
-// 🔹 LOGIN FUNCTION
-bool loginStudent(string username, string password)
-{
+void saveEnrollments(string uname, const vector<string> &regs) {
+    ifstream infile("enrollments.txt");
+    string line_u, c1, c2;
+    vector<string> otherData;
+    
+    while (infile >> line_u >> c1 >> c2) {
+        if (line_u != uname) {
+            otherData.push_back(line_u + " " + c1 + " " + c2);
+        }
+    }
+    infile.close();
+
+    ofstream outfile("enrollments.txt");
+    for (const string& s : otherData) outfile << s << endl;
+    
+    // Using vector indices to save
+    outfile << uname << " " << (regs.size() > 0 ? regs[0] : "None") << " " 
+            << (regs.size() > 1 ? regs[1] : "None") << endl;
+    outfile.close();
+}
+
+void loadMyEnrollments(string uname, vector<string> &regs) {
+    ifstream file("enrollments.txt");
+    string line_u, c1, c2;
+    regs.clear();
+    while (file >> line_u >> c1 >> c2) {
+        if (line_u == uname) {
+            if (c1 != "None") regs.push_back(c1);
+            if (c2 != "None") regs.push_back(c2);
+            break;
+        }
+    }
+    file.close();
+}
+
+bool loginStudent(string username, string password) {
     ifstream file("students.txt");
     string u, p;
-
-    while (file >> u >> p)
-    {
-        if (u == username && p == password)
-        {
-            file.close();
-            return true;
-        }
+    while (file >> u >> p) {
+        if (u == username && p == password) { file.close(); return true; }
     }
-
-    file.close();
-    return false;
+    file.close(); return false;
 }
 
-// 🔹 REGISTER NEW STUDENT
-void registerStudent(string username, string password)
-{
+void registerStudent(string username, string password) {
     ofstream file("students.txt", ios::app);
-    file << "\n"<< username << " " << password << endl;
+    file << "\n" << username << " " << password << endl;
     file.close();
 }
 
-class Student 
-{
+// --- STUDENT CLASS ---
+class Student : public Person {
 private:
-    string username;
-    string registeredCourses[2];
-    int courseCount;
+    vector<string> registeredCourses; // Changed array to vector
 
 public:
-    Student(string uname) 
-    {
-        username = uname;
-        courseCount = 0;
+    Student(string uname) : Person(uname) {
+        loadMyEnrollments(username, registeredCourses);
     }
 
-    void viewCourses(Course courses[], int n) 
-    {
+    void viewCourses(const vector<Course> &courses) {
         cout << "\nAvailable Courses:\n";
-        for (int i = 0; i < n; i++) 
-        {
-            courses[i].display();
-        }
+        for (const auto &c : courses) c.display();
     }
 
-    void registerCourse(Course courses[], int n) 
-    {
+    void registerCourse(vector<Course> &courses) {
         string cid;
-        cout << "Enter Course ID: ";
-        cin >> cid;
-
-        // duplicate check
-        for (int i = 0; i < courseCount; i++) 
-        {
-            if (registeredCourses[i] == cid) 
-            {
-                cout << "Already registered!\n";
-                return;
-            }
+        cout << "Enter Course ID: "; cin >> cid;
+        
+        for (const string &id : registeredCourses) {
+            if (id == cid) { cout << "Already registered!\n"; return; }
+        }
+        
+        if (registeredCourses.size() >= 2) { 
+            cout << "Max 2 courses allowed!\n"; return; 
         }
 
-        if (courseCount == 2) 
-        {
-            cout << "Max 2 courses allowed!\n";
-            return;
-        }
-
-        for (int i = 0; i < n; i++) 
-        {
-            if (courses[i].id == cid) 
-            {
-                if (courses[i].enrolled >= courses[i].capacity) 
-                {
-                    cout << "Course is full!\n";
-                    return;
-                }
-
-                registeredCourses[courseCount++] = cid;
-                courses[i].enrolled++;
-
-                saveCourses(courses, n); //  save update
-
+        for (auto &c : courses) {
+            if (c.id == cid) {
+                if (c.enrolled >= c.capacity) { cout << "Course is full!\n"; return; }
+                registeredCourses.push_back(cid);
+                c.enrolled++;
+                saveCourses(courses);
+                saveEnrollments(username, registeredCourses);
                 cout << "Registered successfully!\n";
                 return;
             }
         }
-
         cout << "Course not found!\n";
     }
 
-    void dropCourse(Course courses[], int n) 
-    {
+    void dropCourse(vector<Course> &courses) {
         string cid;
-        cout << "Enter Course ID to drop: ";
-        cin >> cid;
-
-        for (int i = 0; i < courseCount; i++) 
-        {
-            if (registeredCourses[i] == cid) 
-            {
-                for (int j = 0; j < n; j++) 
-                {
-                    if (courses[j].id == cid) 
-                    {
-                        courses[j].enrolled--;
-                    }
+        cout << "Enter Course ID to drop: "; cin >> cid;
+        
+        for (size_t i = 0; i < registeredCourses.size(); i++) {
+            if (registeredCourses[i] == cid) {
+                for (auto &c : courses) {
+                    if (c.id == cid) c.enrolled--;
                 }
-
-                for (int j = i; j < courseCount - 1; j++) 
-                {
-                    registeredCourses[j] = registeredCourses[j + 1];
-                }
-
-                courseCount--;
-
-                saveCourses(courses, n); // 🔥 save update
-
+                registeredCourses.erase(registeredCourses.begin() + i);
+                saveCourses(courses);
+                saveEnrollments(username, registeredCourses);
                 cout << "Course dropped!\n";
                 return;
             }
         }
-
-        cout << "You are not registered in this course!\n";
+        cout << "Not registered in this course!\n";
     }
 
-    void viewMyCourses() 
-    {
-        if (courseCount == 0) 
-        {
-            cout << "No courses registered.\n";
-            return;
-        }
-
+    void viewMyCourses(const vector<Course> &courses) {
+        if (registeredCourses.empty()) { cout << "No courses registered.\n"; return; }
         cout << "\nMy Courses:\n";
-        for (int i = 0; i < courseCount; i++) 
-        {
-            cout << registeredCourses[i] << endl;
+        for (const string &regId : registeredCourses) {
+            for (const auto &c : courses) {
+                if (c.id == regId) {
+                    cout << "- " << c.id << " : " << c.name << endl;
+                }
+            }
         }
     }
 
-    void studentMenu(Course courses[], int n) 
-    {
+    void studentMenu(vector<Course> &courses) {
         int choice;
-
         do {
-            cout << "\n----- STUDENT MENU -----\n";
-            cout << "1. View Available Courses\n";
-            cout << "2. Register for Course\n";
-            cout << "3. Drop Course\n";
-            cout << "4. View My Courses\n";
-            cout << "5. Logout\n";
-            cout << "Enter choice: ";
+            cout << "\n--- STUDENT MENU (" << username << ") ---\n";
+            cout << "1. View AllCourses\n2. Register Course\n3. Drop Course\n4. View My Courses\n5. Logout\nChoice: ";
             cin >> choice;
-
-            switch (choice) 
-            {
-                case 1: viewCourses(courses, n); break;
-                case 2: registerCourse(courses, n); break;
-                case 3: dropCourse(courses, n); break;
-                case 4: viewMyCourses(); break;
-                case 5: cout << "Logging out...\n"; break;
-                default: cout << "Invalid choice!\n";
-            }
-
+            if (choice == 1) viewCourses(courses);
+            else if (choice == 2) registerCourse(courses);
+            else if (choice == 3) dropCourse(courses);
+            else if (choice == 4) viewMyCourses(courses);
         } while (choice != 5);
     }
 };
 
-int main() 
-{
-    Course courses[10];
-    int n;
+// --- ADMIN CLASS ---
+class Admin : public Person {
+public:
+    Admin(string uname) : Person(uname) {}
 
-    loadCourses(courses, n);
+    void addCourse(vector<Course> &courses) {
+        Course newC;
+        cout << "New Course ID: "; cin >> newC.id;
+        cout << "New Course Name: "; cin >> newC.name;
+        cout << "Capacity: "; cin >> newC.capacity;
+        newC.enrolled = 0;
+        try {
+            if (newC.capacity <= 0) throw runtime_error("Capacity must be positive!");
+            courses.push_back(newC);
+            saveCourses(courses);
+            cout << "Course added!\n";
+        } catch (const runtime_error& e) { cout << "[ERROR] " << e.what() << endl; }
+    }
 
-    int role;
-    cout << "1. Student\n2. Admin\nEnter role: ";
-    cin >> role;
-
-    if (role == 1) 
-    {
-        int opt;
-        cout << "1. Login\n2. Register\nEnter: ";
-        cin >> opt;
-
-        string username, password;
-
-        cout << "Enter username: ";
-        cin >> username;
-
-        cout << "Enter password: ";
-        cin >> password;
-
-        if (opt == 2)
-        {
-            registerStudent(username, password);
-            cout << "Registered successfully!\n";
-        }
-        else{
-            if (loginStudent(username, password)) 
-            {
-                cout << "Login successful!\n";
-
-                Student s(username);
-                s.studentMenu(courses, n);
-            } 
-            else 
-            {
-                cout << "Invalid credentials!\n";
+    void deleteCourse(vector<Course> &courses) {
+        string cid;
+        cout << "Enter ID to delete: "; cin >> cid;
+        for (size_t i = 0; i < courses.size(); i++) {
+            if (courses[i].id == cid) {
+                courses.erase(courses.begin() + i);
+                saveCourses(courses);
+                cout << "Deleted.\n";
+                return;
             }
         }
-    }
-    else if (role == 2) 
-    {
-        cout << "Admin part not implemented yet 😌\n";
-    }
-    else 
-    {
-        cout << "Invalid role!\n";
+        cout << "Not found.\n";
     }
 
+    void adminMenu(vector<Course> &courses) {
+        int choice;
+        do {
+            cout << "\n--- ADMIN PANEL ---\n1. View All\n2. Add Course \n3. Delete Course\n4. Stats\n5. Logout\nChoice: ";
+            cin >> choice;
+            if (choice == 1) for(const auto &c : courses) c.display();
+            else if (choice == 2) addCourse(courses);
+            else if (choice == 3) deleteCourse(courses);
+            else if (choice == 4) cout << "Total Active Sessions(Objects): " << totalUsers << endl;
+        } while (choice != 5);
+    }
+};
+
+int main() {
+    vector<Course> courses; // Main container is now a vector
+    loadCourses(courses);
+
+    while (true) {
+        int role;
+        cout << "\n1. Student\n2. Admin\n3. Exit\nRole: "; cin >> role;
+        if (role == 3) break;
+        if (role == 1) {
+            int opt;
+            cout << "1. Login\n2. Register\nChoice: "; cin >> opt;
+            string u, p;
+            cout << "User: "; cin >> u; cout << "Pass: "; cin >> p;
+            if (opt == 2) registerStudent(u, p);
+            else if (loginStudent(u, p)) { 
+                Student s(u); 
+                s.studentMenu(courses); 
+            }
+            else cout << "Login Failed, Not a registered student.\n";
+        } 
+        else if (role == 2) {
+            string u, p;
+            cout << "Admin User: "; cin >> u; cout << "Admin Pass: "; cin >> p;
+            if (u == "admin" && p == "123") { 
+                Admin a(u); 
+                a.adminMenu(courses); 
+            }
+            else cout << "Denied.\n";
+        }
+    }
     return 0;
 }
